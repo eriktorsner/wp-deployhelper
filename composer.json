@@ -1,0 +1,30 @@
+{
+  "name": "eriktorsner/wp-deployhelper",
+  "description": "A small util for deploying WordPress installations via ftp. Only fast.",
+  "type": "library",
+  "keywords": [
+    "wordpress", "ftp"
+  ],
+  "homepage": "https://github.com/eriktorsner/wp-deployhelper/",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Erik Torsner",
+      "email": "erik@torgesta.com",
+      "role": "lead"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/eriktorsner/wp-deployhelper/issues"
+  },
+  "require": {
+    "php": ">=5.3.3"
+  },
+  "autoload": {
+    "psr-4": {
+      "Wpbootstrap\\": "src"
+    }
+  },
+
+  "bin": ["bin/wp-deployhelper"]
+}
