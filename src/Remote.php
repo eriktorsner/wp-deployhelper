@@ -9,19 +9,16 @@ namespace DeployHelper;
 class Remote
 {
     private $ftpSettings;
-    private $localSettings;
     private $secret;
     private $connId;
 
     /**
      * Remote constructor.
-     * @param $localSettings
      * @param $ftpSettings
      */
-    public function __construct($localSettings, $ftpSettings)
+    public function __construct($ftpSettings)
     {
         $this->ftpSettings = $ftpSettings;
-        $this->localSettings = $localSettings;
         $this->secret = md5(time() . 'a3dcb4d229de6fde0db5686dee47145d');
     }
 
@@ -52,6 +49,13 @@ class Remote
         }
     }
 
+    /**
+     * Iterates through the $changeSet array and adds the files
+     * to a zip archive. The archive is then sent to the target
+     * ftp host and unpacked by the local agent.
+     *
+     * @param array $changeSet
+     */
     public function sendChanges($changeSet)
     {
 
@@ -67,15 +71,21 @@ class Remote
 
         // iterate the changeSet
         $localBase = rtrim($this->ftpSettings->localPath, '/');
+        $folders = array();
         foreach ($changeSet as $file => $change) {
-            $zip->addFile($localBase . $file, $file);
+            if (is_dir($localBase . $file)) {
+                $folders[] = $file;
+            } else {
+                $zip->addFile($localBase . $file, $file);
+            }
         }
+        $zip->addFromString('_wpdph_folders', serialize($folders));
         $zip->close();
 
         // send it to the target
         ftp_chdir($this->connId, $this->ftpSettings->remotePath);
         ftp_put($this->connId, $this->secret. '.zip', $zipFile, FTP_BINARY);
-        unlink($zipFile);
+        //unlink($zipFile);
 
         // ask the agent to unpack
         $agent = $this->secret . '.php';
@@ -86,12 +96,9 @@ class Remote
 
     public function cleanUp()
     {
-        ftp_chdir($this->connId, $this->ftpSettings->remotePath);
         $agent = $this->secret . '.php';
-        $zip = $this->secret . '.zip';
-
-        //ftp_delete($this->connId, $agent);
-        //ftp_delete($this->connId, $zip);
+        $url = $this->properUrl($this->ftpSettings->httpUrl) . "/$agent?cmd=selfdestruct";
+        file_get_contents($url);
     }
 
     public function close()

@@ -44,17 +44,19 @@ class Deploy
         $this->ftpSettings = new Settings('ftp');
 
         $this->utils = new Utils();
-        $this->remote = new Remote($this->localSettings, $this->ftpSettings);
-
+        $this->remote = new Remote($this->ftpSettings);
 
         $localChanges = $this->getModifiedLocalFiles();
         $remoteChanges = $this->getModifiedRemoteFiles();
-
-        print_r($localChanges);
-        print_r($remoteChanges);
+        $missingRemote = $this->getMissingRemoteFiles();
 
         // Merge the changes together
         foreach ($remoteChanges as $file => $change) {
+            if (!isset($localChanges[$file])) {
+                $localChanges[$file] = $change;
+            }
+        }
+        foreach ($missingRemote as $file => $change) {
             if (!isset($localChanges[$file])) {
                 $localChanges[$file] = $change;
             }
@@ -63,10 +65,12 @@ class Deploy
         // Send the changes to the remote server:
         $this->remote->sendChanges($localChanges);
         $this->remote->cleanUp();
+        // ...grab another remote snapshot
         $this->currentRemoteState = $this->remote->remoteScan();
 
-        // if all went well, we're still here... so save state
+        // if all went well (how do we know?), we're still here... so save state
         $this->saveState();
+        $this->remote->cleanUp();
         $this->remote->close();
     }
 
@@ -89,7 +93,7 @@ class Deploy
     private function getModifiedLocalFiles()
     {
         // 1. Scan local folders, use md5 sum locally
-        $this->currentLocalState = $this->utils->localScan('/vagrant/test');
+        $this->currentLocalState = $this->utils->localScan($this->ftpSettings->localPath);
         $currentArray = $this->utils->tabSepStringToArray($this->currentLocalState, 0, 3);
         $saved = $this->utils->readSavedState(BASEPATH . '/deployhelper/localstate');
         $savedArray = $this->utils->tabSepStringToArray($saved, 0, 3);
@@ -134,6 +138,31 @@ class Deploy
                 }
             } else {
                 $changeSet[$file] = array('state' => 'DEL', 'file' => $file);
+            }
+        }
+
+        return $changeSet;
+    }
+
+    /**
+     * Identify files that exist locally but not remotely
+     * A safety net to make sure that remote files get
+     * transferred even if the remote change detection fails
+     *
+     * @return array
+     */
+    private function getMissingRemoteFiles()
+    {
+        // get array with file path/name as key and size as value
+        $currentLocal  = $this->utils->tabSepStringToArray($this->currentLocalState, 0, 2);
+        $currentRemote =   $this->utils->tabSepStringToArray($this->currentLocalState, 0, 2);
+
+        $changeSet= array();
+        foreach ($currentLocal as $file => $size) {
+            if (!isset($currentRemote[$file])) {
+                $changeSet[$file] = array('state' => 'missing', 'file' => $file);
+            } elseif ($size != $currentRemote[$file]) {
+                $changeSet[$file] = array('state' => 'sizediff', 'file' => $file);
             }
         }
 

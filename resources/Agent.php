@@ -30,9 +30,14 @@ switch ($cmd) {
         break;
     case 'unpack':
         $fileName = str_replace('.php', '.zip', __FILE__);
-        unpackZip($fileName);
-
-
+        $ret = new stdClass();
+        $ret->status = '200';
+        $ret->messages = array();
+        unpackZip($fileName, $ret);
+        echo json_encode($ret);
+        break;
+    case 'selfdestruct':
+        unlink(__FILE__);
         break;
 }
 
@@ -88,19 +93,38 @@ function fnInArray($needle, $haystack)
     return false;
 }
 
-function unpackZip($fileName)
+function unpackZip($fileName, &$ret)
 {
     $zip = new ZipArchive();
     $zip->open($fileName);
     $base = dirname(__FILE__);
 
+    $internal = array('_wpdph_folders', '_wpdph_delete');
+
+    $folders = array();
+    if ($strFolders = $zip->getFromName('_wpdph_folders')) {
+        $folders = unserialize($strFolders);
+        foreach ($folders as $folder) {
+            $localName = ltrim($folder, '/');
+            if (!@mkdir($localName, 0777, true)) {
+                $ret->messages[] = "folder $localName could not be created";
+            }
+        }
+    }
+
     for ($i = 0; $i<$zip->numFiles; $i++) {
         $file = $zip->getNameIndex($i);
-        if (!is_dir($file) && $file != '_deployhelpermanifest') {
-            $zip->extractTo($base, $file);
-        } else {
+        if (in_array($file, $folders)) {
             continue;
+        }
+        if (in_array($file, $internal)) {
+            continue;
+        }
+        $success = $zip->extractTo($base, $file);
+        if (!$success) {
+            $ret->messages[] = "file $file could not be extracted";
         }
     }
     $zip->close();
+    unlink($fileName);
 }
