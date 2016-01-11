@@ -99,7 +99,7 @@ function unpackZip($fileName, &$ret)
     $zip->open($fileName);
     $base = dirname(__FILE__);
 
-    $internal = array('_wpdph_folders', '_wpdph_delete');
+    $internal = array('_wpdph_folders', '_wpdph_delete', '_wpdph_rewrite');
 
     $folders = array();
     if ($strFolders = $zip->getFromName('_wpdph_folders')) {
@@ -110,6 +110,18 @@ function unpackZip($fileName, &$ret)
                 $ret->messages[] = "folder $localName could not be created";
             }
         }
+    }
+
+    if ($strRewriteRules = $zip->getFromName('_wpdph_rewrite')) {
+        $rules = unserialize($strRewriteRules);
+    } else {
+        $rules = array();
+    }
+
+    if ($strDelete = $zip->getFromName('_wpdph_delete')) {
+        $deletes = unserialize($strDelete);
+    } else {
+        $deletes = array();
     }
 
     for ($i = 0; $i<$zip->numFiles; $i++) {
@@ -123,8 +135,24 @@ function unpackZip($fileName, &$ret)
         $success = $zip->extractTo($base, $file);
         if (!$success) {
             $ret->messages[] = "file $file could not be extracted";
+        } else {
+            foreach ($rules as $rule) {
+                if (fnmatch($rule->file, $file)) {
+                    $content = file_get_contents($base.$file);
+                    $newContent = preg_replace($rule->pattern, $rule->replace, $content, -1, $count);
+                    if ($count > 0) {
+                        file_put_contents($base.$file, $newContent);
+                        $ret->messages[] = "$count replacements made in $file";
+                    }
+                }
+            }
         }
     }
     $zip->close();
+
+    foreach ($deletes as $deletedFile) {
+        unlink($base . $deletedFile);
+    }
+
     unlink($fileName);
 }
