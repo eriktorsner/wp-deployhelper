@@ -55,13 +55,13 @@ class Remote
      * ftp host and unpacked by the local agent.
      *
      * @param array $changeSet
+     * @return object
      */
     public function sendChanges($changeSet)
     {
 
-        print_r($changeSet);
         if (count($changeSet) == 0) {
-            return;
+            return json_decode('{"messages":[]}');
         }
 
         // Create a zip file
@@ -72,14 +72,26 @@ class Remote
         // iterate the changeSet
         $localBase = rtrim($this->ftpSettings->localPath, '/');
         $folders = array();
+        $deleted = array();
         foreach ($changeSet as $file => $change) {
             if (is_dir($localBase . $file)) {
                 $folders[] = $file;
             } else {
-                $zip->addFile($localBase . $file, $file);
+                if ($change['state'] == 'LOCALDEL') {
+                    $deleted[] = $file;
+                } else {
+                    $zip->addFile($localBase . $file, $file);
+                }
             }
         }
+
         $zip->addFromString('_wpdph_folders', serialize($folders));
+        $zip->addFromString('_wpdph_delete', serialize($deleted));
+        if (isset($this->ftpSettings->rewrite)) {
+            $zip->addFromString('_wpdph_rewrite', serialize($this->ftpSettings->rewrite));
+        } else {
+            $zip->addFromString('_wpdph_rewrite', serialize(array()));
+        }
         $zip->close();
 
         // send it to the target
@@ -90,7 +102,9 @@ class Remote
         // ask the agent to unpack
         $agent = $this->secret . '.php';
         $url = $this->properUrl($this->ftpSettings->httpUrl) . "/$agent?cmd=unpack";
-        file_get_contents($url);
+        $ret = file_get_contents($url);
+
+        return json_decode($ret);
 
     }
 
