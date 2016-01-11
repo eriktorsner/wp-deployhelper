@@ -36,7 +36,6 @@ class Deploy
     public function deploy()
     {
         $this->ftpSettings = new Settings('ftp');
-
         $this->utils = new Utils();
         $this->remote = new Remote($this->ftpSettings);
 
