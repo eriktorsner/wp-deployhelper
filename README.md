@@ -31,7 +31,7 @@ wp-deployhelper uses a single json configuration file that needs to be in the pr
     {
         "host": "ftp.mydomain.com",
         "user": "mydomain",
-        "": "secret",
+        "pass": "secret",
         "remotePath": "/public_html",
         "localPath": "/vagrant/www/wordpress-default",
         "httpUrl": "www.mydomain.com",
@@ -71,6 +71,19 @@ wp-deplyhelper only has one command with no arguments:
 ## Saved state
 
 After each run local and remote state is saved in the subfolder wp-deployhelper directly under the project root. There's currently no way to alter the state folder path or name.
+
+## Rules
+
+The rules for what files to transfer or delete are currently not configurable. The intended use case is that the local server controls what files that are supposed to exist on the server. However, files that are added "runtime" on the server will not be removed.
+
+| Local | Remote | Result | Reasoning |
+|---------|-----------|-----------|-----------|
+| NEW, MOD| * | Copied to remote | Any new or modified local file will be transferred regardless of remote state|
+| EXISTS| DEL, MOD | Copied to remote | A remotely modified or deleted file will be replaced by the original from local |
+| DEL | * | Deleted from remote| Deleted local file will delete the file remotely |
+| * | NEW | No action | Files added remotely are assumed to be correctly added by the application itself |
+
+**Note:** A locally renamed file will be treated as two files. One deleted and one new.
 
 ## Detailed description
 **Step 1.** wp-deployhelper works by creating a complete (recursive) list of all local and remote files. To get the remote index, a php a script is pushed to the target server to take advantage of the php *scandir* fundtion rather than relying on indexing via ftp (slow).  The two indexes as first compared against saved state for both the local and remote sides to figure out which files that needs to be transferred or deleted on the remote server.
