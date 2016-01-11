@@ -31,16 +31,10 @@ class Deploy
     /**
      * @var Settings
      */
-    private $localSettings;
-
-    /**
-     * @var Settings
-     */
     private $ftpSettings;
 
     public function deploy()
     {
-        $this->localSettings = new Settings('local');
         $this->ftpSettings = new Settings('ftp');
 
         $this->utils = new Utils();
@@ -63,17 +57,24 @@ class Deploy
         }
 
         // Send the changes to the remote server:
-        $this->remote->sendChanges($localChanges);
+        $status = $this->remote->sendChanges($localChanges);
+        foreach ($status->messages as $message) {
+            echo "Remote: $message\n";
+        }
+
         $this->remote->cleanUp();
         // ...grab another remote snapshot
         $this->currentRemoteState = $this->remote->remoteScan();
 
         // if all went well (how do we know?), we're still here... so save state
-        $this->saveState();
         $this->remote->cleanUp();
         $this->remote->close();
+        $this->saveState();
     }
 
+    /**
+     * Save local and remote state
+     */
     private function saveState()
     {
         $folder = BASEPATH . '/deployhelper';
@@ -103,16 +104,16 @@ class Deploy
         foreach ($savedArray as $file => $sum) {
             if (isset($currentArray[$file])) {
                 if ($currentArray[$file] != $sum) {
-                    $changeSet[$file] = array('state' => 'MOD', 'file' => $file);
+                    $changeSet[$file] = array('state' => 'LOCALMOD', 'file' => $file);
                 }
             } else {
-                $changeSet[$file] = array('state' => 'DEL', 'file' => $file);
+                $changeSet[$file] = array('state' => 'LOCALDEL', 'file' => $file);
             }
         }
 
         foreach ($currentArray as $file => $sum) {
             if (!isset($savedArray[$file])) {
-                $changeSet[$file] = array('state' => 'NEW', 'file' => $file);
+                $changeSet[$file] = array('state' => 'LOCALNEW', 'file' => $file);
             }
         }
 
@@ -134,10 +135,10 @@ class Deploy
         foreach ($savedArray as $file => $sum) {
             if (isset($currentArray[$file])) {
                 if ($currentArray[$file] != $sum) {
-                    $changeSet[$file] = array('state' => 'MOD', 'file' => $file);
+                    $changeSet[$file] = array('state' => 'REMOTEMOD', 'file' => $file);
                 }
             } else {
-                $changeSet[$file] = array('state' => 'DEL', 'file' => $file);
+                $changeSet[$file] = array('state' => 'REMOTEDEL', 'file' => $file);
             }
         }
 
@@ -155,14 +156,12 @@ class Deploy
     {
         // get array with file path/name as key and size as value
         $currentLocal  = $this->utils->tabSepStringToArray($this->currentLocalState, 0, 2);
-        $currentRemote =   $this->utils->tabSepStringToArray($this->currentLocalState, 0, 2);
+        $currentRemote =   $this->utils->tabSepStringToArray($this->currentRemoteState, 0, 2);
 
         $changeSet= array();
         foreach ($currentLocal as $file => $size) {
             if (!isset($currentRemote[$file])) {
                 $changeSet[$file] = array('state' => 'missing', 'file' => $file);
-            } elseif ($size != $currentRemote[$file]) {
-                $changeSet[$file] = array('state' => 'sizediff', 'file' => $file);
             }
         }
 
