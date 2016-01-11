@@ -23,9 +23,6 @@ class Settings
     {
         $file = '';
         switch ($type) {
-            case 'local':
-                $file = '/localsettings.json';
-                break;
             case 'ftp':
                 $file = '/ftpsettings.json';
                 break;
